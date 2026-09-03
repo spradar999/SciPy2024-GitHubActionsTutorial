@@ -6,66 +6,93 @@ run-name: ${{ inputs.workflow_name }}
 on:
   workflow_dispatch:
     inputs:
-        img1_product_name:
-            type: string
-            required: true
-            description: S2 image 1 product name
-            default: S2A_MSIL2A_20200629T054641_N0500_R048_T43SEA_20230505T184918.SAFE
-        img2_product_name:
-            type: string
-            required: true
-            description: S2 image 2 product name 
-            default: S2B_MSIL2A_20200922T054639_N0500_R048_T43SEA_20230624T184729.SAFE
-        workflow_name:
-            description: 'Custom workflow name'
-            required: false
-            default: 'autoRIFT'
-            type: string
+      img1_product_name:
+        type: string
+        required: true
+        description: S2 image 1 product name
+        default: S2A_MSIL2A_20200629T054641_N0500_R048_T43SEA_20230505T184918.SAFE
 
-  # Must duplicate inputs for workflow_call (https://github.com/orgs/community/discussions/39357)
+      img2_product_name:
+        type: string
+        required: true
+        description: S2 image 2 product name
+        default: S2B_MSIL2A_20200922T054639_N0500_R048_T43SEA_20230624T184729.SAFE
+
+      workflow_name:
+        description: 'Custom workflow name'
+        required: false
+        default: 'autoRIFT'
+        type: string
+
+  # Must duplicate inputs for workflow_call
   workflow_call:
     inputs:
-        img1_product_name:
-            type: string
-            description: S2 image 1 product name 
-        img2_product_name:
-            type: string
-            description: S2 image 2 product name 
-        workflow_name:
-            description: 'Custom workflow name'
-            type: string
+      img1_product_name:
+        type: string
+        description: S2 image 1 product name
+
+      img2_product_name:
+        type: string
+        description: S2 image 2 product name
+
+      workflow_name:
+        description: 'Custom workflow name'
+        type: string
 
 jobs:
-    autoRIFT:
-        name: ${{ inputs.workflow_name }}
-        runs-on: ubuntu-latest
-        defaults:
-            run:
-                shell: bash -el {0}
+  autoRIFT:
+    name: ${{ inputs.workflow_name }}
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout Repository
-              uses: actions/checkout@v4
+    defaults:
+      run:
+        shell: bash -el {0}
 
-            - name: Install Conda environment with Micromamba
-              uses: mamba-org/setup-micromamba@v3
-              with:
-                cache-environment: true
-                environment-file: glacier_image_correlation/environment.yml
+    steps:
 
-            - name: Modify autoRIFT Package
-            # current release has deprecated numpy functions https://github.com/nasa-jpl/autoRIFT/issues/97
-              run: |
-                git clone https://github.com/gbrencher/autoRIFT.git
-                cp -f autoRIFT/geo_autoRIFT/autoRIFT/autoRIFT.py /home/runner/micromamba/envs/image-correlation/lib/python3.12/site-packages/autoRIFT/
-                
-            - name: Download Data and Run autoRIFT Software
-              run: |
-                python glacier_image_correlation/image_correlation.py ${{ inputs.img1_product_name }} ${{ inputs.img2_product_name }}
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-            - name: Upload Velocity Map as Artifact
-              uses: actions/upload-artifact@v4
-              with:
-                name: ${{ inputs.workflow_name }}
-                path: |
-                    S2*horizontal_velocity.tif
+      - name: Install Conda environment with Micromamba
+        uses: mamba-org/setup-micromamba@v3
+        with:
+          cache-environment: true
+          environment-file: glacier_image_correlation/environment.yml
+          environment-name: image-correlation
+
+      - name: Check Environment
+        run: |
+          echo "Python version:"
+          python --version
+
+          echo "Python location:"
+          which python
+
+          echo "Conda environment:"
+          echo "$CONDA_PREFIX"
+
+      - name: Modify autoRIFT Package
+        # Current release has deprecated numpy functions
+        # https://github.com/nasa-jpl/autoRIFT/issues/97
+        run: |
+          git clone https://github.com/gbrencher/autoRIFT.git
+
+          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+
+          echo "Site-packages: $SITE_PACKAGES"
+
+          cp -f autoRIFT/geo_autoRIFT/autoRIFT/autoRIFT.py \
+            "$SITE_PACKAGES/autoRIFT/"
+
+      - name: Download Data and Run autoRIFT Software
+        run: |
+          python glacier_image_correlation/image_correlation.py \
+            "${{ inputs.img1_product_name }}" \
+            "${{ inputs.img2_product_name }}"
+
+      - name: Upload Velocity Map as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.workflow_name }}
+          path: |
+            S2*horizontal_velocity.tif
