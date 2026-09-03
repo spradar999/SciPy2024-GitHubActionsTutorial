@@ -24,7 +24,7 @@ def main():
     # hardcode bbox for now
     bbox = {
         "type": "Polygon",
-        "coordinates":"coordinates": [
+        "coordinates":[
   [
     [85.47258554449314, 28.335518201535777],
     [85.60623352364757, 28.335518201535777],
